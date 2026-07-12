@@ -20,6 +20,29 @@ OWNER = "@traxvezz"
 bot = telebot.TeleBot(BOT_TOKEN)
 cache_reports = {}
 
+FIELD_TRANSLATE = {
+    "Email": "Почта",
+    "FullName": "ФИО",
+    "NickName": "Ник",
+    "Password(MD5)": "Пароль (MD5)",
+    "IP": "IP-адрес",
+    "BDay": "Дата рождения",
+    "RegDate": "Дата регистрации",
+    "LastActive": "Последний вход",
+    "Gender": "Пол",
+    "Phone": "Телефон",
+    "Link": "Ссылка",
+    "Login": "Логин",
+    "Address": "Адрес",
+    "City": "Город",
+    "Country": "Страна",
+    "Company": "Компания",
+    "Position": "Должность"
+}
+
+def translate_field(field):
+    return FIELD_TRANSLATE.get(field, field)
+
 def init_db():
     with sqlite3.connect("bot_database.db") as conn:
         cursor = conn.cursor()
@@ -144,7 +167,8 @@ def get_report(query, search_type="all", deep=False):
             for entry in db_content["data"]:
                 for field, value in entry.items():
                     if value and str(value).strip():
-                        lines.append(f"<b>{field}:</b> <code>{value}</code>")
+                        ru_field = translate_field(field)
+                        lines.append(f"<b>{ru_field}:</b> <code>{value}</code>")
                 lines.append("")
             text = "\n".join(lines)
             if len(text) > 3900:
@@ -370,10 +394,10 @@ def handle_callbacks(c):
             writer.writerow([f"Источник: {db_name}", db_content["info"]])
             if db_content["data"]:
                 first = db_content["data"][0]
-                headers = list(first.keys())
+                headers = [translate_field(h) for h in first.keys()]
                 writer.writerow(headers)
                 for entry in db_content["data"]:
-                    writer.writerow([entry.get(h, "") for h in headers])
+                    writer.writerow([entry.get(h, "") for h in first.keys()])
 
         output.seek(0)
         bio = io.BytesIO(output.getvalue().encode("utf-8-sig"))
