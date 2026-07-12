@@ -12,10 +12,20 @@ DEEP_LIMIT = 5000
 API_URL = "https://leakosintapi.com/"
 OWNER = "@traxvezz"
 
+CHANNEL_USERNAME = "@TraxFIND"
+CHANNEL_LINK = "https://t.me/TraxFIND"
+
 bot = telebot.TeleBot(BOT_TOKEN)
 cache = {}
 history = {}
 favorites = {}
+
+def check_subscription(user_id):
+    try:
+        status = bot.get_chat_member(CHANNEL_USERNAME, user_id).status
+        return status in ["member", "administrator", "creator"]
+    except:
+        return False
 
 def get_report(query, search_type="all", deep=False):
     if search_type == "fio":
@@ -81,15 +91,40 @@ def main_menu():
 
 @bot.message_handler(commands=["start"])
 def start(m):
-    user_id = str(m.from_user.id)
-    if user_id not in history:
-        history[user_id] = []
-    if user_id not in favorites:
-        favorites[user_id] = []
+    user_id = m.from_user.id
+    
+    if not check_subscription(user_id):
+        kb = InlineKeyboardMarkup()
+        kb.add(InlineKeyboardButton("📢 Подписаться", url=CHANNEL_LINK))
+        kb.add(InlineKeyboardButton("🔄 Проверить", callback_data="check_sub"))
+        
+        bot.send_message(
+            m.chat.id,
+            f"Подпишись на канал:\n{CHANNEL_LINK}\n\nПосле подписки нажми «Проверить»",
+            reply_markup=kb
+        )
+        return
+    
+    if str(user_id) not in history:
+        history[str(user_id)] = []
+    if str(user_id) not in favorites:
+        favorites[str(user_id)] = []
     bot.send_message(m.chat.id, "TraxFIND", reply_markup=main_menu())
+
+@bot.callback_query_handler(func=lambda c: c.data == "check_sub")
+def check_sub_cb(c):
+    user_id = c.from_user.id
+    if check_subscription(user_id):
+        bot.delete_message(c.message.chat.id, c.message.message_id)
+        bot.send_message(c.message.chat.id, "✅ Доступ открыт", reply_markup=main_menu())
+        bot.answer_callback_query(c.id, "Подтверждено")
+    else:
+        bot.answer_callback_query(c.id, "❌ Не подписан", show_alert=True)
 
 @bot.message_handler(func=lambda m: m.text == "?")
 def help_cmd(m):
+    if not check_subscription(m.from_user.id):
+        return
     bot.send_message(m.chat.id, 
         "ФИО — имя, фамилия\n"
         "Всё — телефон, почта, логин\n"
@@ -100,6 +135,8 @@ def help_cmd(m):
 
 @bot.message_handler(func=lambda m: m.text in ["ФИО", "Всё", "Глубоко"])
 def set_mode(m):
+    if not check_subscription(m.from_user.id):
+        return
     mode = "fio" if m.text == "ФИО" else "all"
     deep = m.text == "Глубоко"
     bot.send_message(m.chat.id, f"{m.text}\nВведите запрос")
@@ -107,6 +144,8 @@ def set_mode(m):
 
 @bot.message_handler(func=lambda m: m.text == "История")
 def show_history(m):
+    if not check_subscription(m.from_user.id):
+        return
     user_id = str(m.from_user.id)
     if user_id not in history or not history[user_id]:
         bot.send_message(m.chat.id, "—")
@@ -116,6 +155,8 @@ def show_history(m):
     bot.register_next_step_handler(m, repeat_query)
 
 def repeat_query(m):
+    if not check_subscription(m.from_user.id):
+        return
     try:
         idx = int(m.text) - 1
         user_id = str(m.from_user.id)
@@ -130,6 +171,8 @@ def repeat_query(m):
 
 @bot.message_handler(func=lambda m: m.text == "★")
 def show_favs(m):
+    if not check_subscription(m.from_user.id):
+        return
     user_id = str(m.from_user.id)
     if user_id not in favorites or not favorites[user_id]:
         bot.send_message(m.chat.id, "—")
@@ -139,6 +182,8 @@ def show_favs(m):
     bot.register_next_step_handler(m, delete_fav)
 
 def delete_fav(m):
+    if not check_subscription(m.from_user.id):
+        return
     try:
         idx = int(m.text) - 1
         user_id = str(m.from_user.id)
@@ -151,6 +196,8 @@ def delete_fav(m):
         bot.reply_to(m, "—")
 
 def process_query(m, mode, deep):
+    if not check_subscription(m.from_user.id):
+        return
     if not m.text:
         bot.reply_to(m, "—")
         return
@@ -176,6 +223,8 @@ def process_query(m, mode, deep):
 
 @bot.callback_query_handler(func=lambda c: c.data.startswith("p "))
 def page_cb(c):
+    if not check_subscription(c.from_user.id):
+        return
     _, qid, p = c.data.split()
     p = int(p)
     data = cache.get(qid)
@@ -195,6 +244,8 @@ def page_cb(c):
 
 @bot.callback_query_handler(func=lambda c: c.data.startswith("exp "))
 def export_cb(c):
+    if not check_subscription(c.from_user.id):
+        return
     qid = c.data.split()[1]
     data = cache.get(qid)
     if not data:
@@ -215,6 +266,8 @@ def export_cb(c):
 
 @bot.callback_query_handler(func=lambda c: c.data.startswith("fav "))
 def fav_cb(c):
+    if not check_subscription(c.from_user.id):
+        return
     qid = c.data.split()[1]
     data = cache.get(qid)
     if not data:
